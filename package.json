@@ -4,8 +4,8 @@
   "description": "Blockbench plugins development repository",
   "main": "index.js",
   "scripts": {
-    "build": "esbuild src/plugin.ts --bundle --outfile=dist/center_object_plugin.js",
-    "dev": "esbuild src/plugin.ts --bundle --outfile=dist/center_object_plugin.js --watch"
+    "build": "esbuild plugins/skytale_3d_artist_essential.ts --bundle --outfile=dist/skytale_3d_artist_essential.js",
+    "dev": "esbuild plugins/skytale_3d_artist_essential.ts --bundle --outfile=dist/skytale_3d_artist_essential.js --watch"
   },
   "author": "Quentin Le Port",
   "license": "MIT",

@@ -1,0 +1,149 @@
+
+const trackItems: Deletable[] = [];
+
+function track(...items: Deletable[]) {
+    trackItems.push(...items);
+}
+
+function refreshLayerIcons() {
+    const panel = Interface.Panels.layers;
+    if (!panel) return;
+    const panelNode = panel.node;
+    if (!panelNode) return;
+
+    const layerRows = panelNode.querySelectorAll<HTMLElement>('li.texture_layer[layer_id]');
+    layerRows.forEach(row => {
+        const uuid = row.getAttribute('layer_id');
+        if (!uuid) return;
+
+        const layer = TextureLayer.all.find(l => l.uuid === uuid);
+        if (!layer) return;
+
+        // Find or create the lock button
+        let btn = row.querySelector<HTMLElement>('div.alpha-lock-btn');
+        if (!btn) {
+            btn = document.createElement('div');
+            btn.className = 'in_list_button alpha-lock-btn';
+
+            const icon = document.createElement('i');
+            icon.className = 'material-icons icon';
+            btn.appendChild(icon);
+
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const rowUuid = row.getAttribute('layer_id');
+                const layerWithButton = rowUuid ? TextureLayer.all.find(x => x.uuid === rowUuid) : null;
+                // @ts-ignore
+                if (layerWithButton) layerWithButton.toggleAlphaLock();
+            });
+
+            // Insert after the visibility button
+            const visibilityBtn = row.querySelector('div.in_list_button');
+            if (visibilityBtn && visibilityBtn.parentNode) {
+                visibilityBtn.parentNode.insertBefore(btn, visibilityBtn.nextSibling);
+            } else {
+                row.appendChild(btn);
+            }
+        }
+
+        // Update icon state
+        const icon = btn.querySelector<HTMLElement>('i');
+        if (!icon) return;
+        const locked = (layer as any).alpha_lock === true;
+        icon.textContent = locked ? 'lock' : 'lock_open';
+        if (locked) {
+            icon.classList.remove('toggle_disabled');
+        } else {
+            icon.classList.add('toggle_disabled');
+        }
+    });
+}
+
+export function setupLayerAlphaLock() {
+    // Register alpha_lock property
+    const alphaLockProperty = new Property(TextureLayer, 'boolean', 'alpha_lock', {
+        default: false
+    });
+    track(alphaLockProperty);
+
+    // Add toggleAlphaLock to prototype
+    // @ts-ignore — assigning to prototype; return type 'this' works at runtime
+    TextureLayer.prototype.toggleAlphaLock = function (this: TextureLayer) {
+        Undo.initEdit({ textures: [this.texture] });
+        (this as any).alpha_lock = !(this as any).alpha_lock;
+        this.texture.updateChangesAfterEdit();
+        refreshLayerIcons();
+        return this;
+    };
+    track({
+        delete() {
+            // @ts-ignore
+            delete TextureLayer.prototype.toggleAlphaLock;
+        }
+    });
+    // Set up MutationObserver
+    const panel = Interface.Panels.layers;
+    let refreshScheduled = false;
+    const observer = new MutationObserver(() => {
+        if (refreshScheduled) return;
+        refreshScheduled = true;
+        requestAnimationFrame(() => {
+            refreshScheduled = false;
+            observer.disconnect();
+            refreshLayerIcons();
+            observer.observe(panel.node, { childList: true, subtree: true });
+        });
+    });
+    observer.observe(panel.node, { childList: true, subtree: true });
+    track({
+        delete() {
+            observer.disconnect();
+        }
+    });
+
+    // Initial icon pass
+    refreshLayerIcons();
+
+    // Context menu action
+    const toggleAlphaLockAction = new Action('toggle_layer_alpha_lock', {
+        name: 'Toggle Alpha Lock',
+        icon: 'lock',
+        category: 'layers',
+        condition: () => TextureLayer.selected != null,
+        click() {
+            if (TextureLayer.selected) {
+                // @ts-ignore
+                TextureLayer.selected.toggleAlphaLock();
+            }
+        }
+    });
+    track(toggleAlphaLockAction);
+
+    // Add to layer context menu
+    // @ts-expect-error — menu property not in public typings
+    const menu: Menu = TextureLayer.prototype.menu;
+    menu.addAction(toggleAlphaLockAction, '#painting');
+    track({
+        delete() {
+            menu.removeAction('toggle_layer_alpha_lock');
+        }
+    });
+}
+
+export function cleanupLayerAlphaLock() {
+    // Remove all injected lock icon buttons from the DOM
+    const panel = Interface.Panels.layers;
+    if (panel && panel.node) {
+        panel.node.querySelectorAll('.alpha-lock-btn').forEach(el => el.remove());
+    }
+
+    // Delete all tracked items
+    for (const item of trackItems) {
+        try {
+            item.delete();
+        } catch (e) {
+            console.error('Alpha lock cleanup error:', e);
+        }
+    }
+    trackItems.splice(0);
+}
