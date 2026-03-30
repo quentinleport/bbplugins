@@ -1,6 +1,10 @@
 # Blockbench Plugins
 
-This repository contains custom plugins for Blockbench.
+This repository contains a custom plugin designed specifically for Skytale 3D artists. 
+Checkout our website to know more - [discover Skytale](https://skytale.fr/)
+
+# About the Skytale 3d Artist essentials plugin 
+Update
 
 ## Development Setup
 

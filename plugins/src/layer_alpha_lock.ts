@@ -1,3 +1,10 @@
+//Use declaration merging to prevent uses of any in the code when adding new porperties
+declare global {
+    interface TextureLayer {
+        alpha_lock: boolean;
+        toggleAlphaLock(): TextureLayer;
+    }
+}
 
 const trackItems: Deletable[] = [];
 
@@ -39,7 +46,6 @@ function refreshLayerIcons() {
                 event.stopPropagation();
                 const rowUuid = row.getAttribute('layer_id');
                 const layerWithButton = rowUuid ? TextureLayer.all.find(x => x.uuid === rowUuid) : null;
-                // @ts-ignore
                 if (layerWithButton) layerWithButton.toggleAlphaLock();
             });
 
@@ -55,7 +61,7 @@ function refreshLayerIcons() {
         // Update icon state
         const icon = btn.querySelector<HTMLElement>('i');
         if (!icon) return;
-        const locked = (layer as any).alpha_lock === true;
+        const locked = layer.alpha_lock === true;
         icon.textContent = locked ? 'lock' : 'lock_open';
         if (locked) {
             icon.classList.remove('toggle_disabled');
@@ -65,44 +71,36 @@ function refreshLayerIcons() {
     });
 }
 
-export function setupLayerAlphaLock() {
-    // Register alpha_lock property
-    const alphaLockProperty = new Property(TextureLayer, 'boolean', 'alpha_lock', {
-        default: false
-    });
-    track(alphaLockProperty);
+function setupProperty() {
+    track(new Property(TextureLayer, 'boolean', 'alpha_lock', { default: false }));
+}
 
-    // Add toggleAlphaLock to prototype
-    // @ts-ignore — assigning to prototype; return type 'this' works at runtime
+function setupPrototypeMethods() {
+    // @ts-ignore — assigning to prototype; return this to keep consistency with blockbench native style 
     TextureLayer.prototype.toggleAlphaLock = function (this: TextureLayer) {
         Undo.initEdit({ textures: [this.texture] });
-        (this as any).alpha_lock = !(this as any).alpha_lock;
+        this.alpha_lock = !this.alpha_lock;
         this.texture.updateChangesAfterEdit();
         refreshLayerIcons();
         syncAlphaLock();
         return this;
     };
     track({
-        delete() {
-            // @ts-ignore
+        delete() { // @ts-ignore
             delete TextureLayer.prototype.toggleAlphaLock;
         }
     });
 
-    // Patch TextureLayer.prototype.select to sync Painter.lock_alpha on layer change
     const _origSelect = TextureLayer.prototype.select;
     TextureLayer.prototype.select = function (this: TextureLayer) {
         const result = _origSelect.call(this);
         syncAlphaLock();
         return result;
     };
-    track({
-        delete() {
-            TextureLayer.prototype.select = _origSelect;
-        }
-    });
+    track({ delete() { TextureLayer.prototype.select = _origSelect; } });
+}
 
-    // Set up MutationObserver
+function setupLayerPanelObserver() {
     const panel = Interface.Panels.layers;
     let refreshScheduled = false;
     const observer = new MutationObserver(() => {
@@ -116,43 +114,35 @@ export function setupLayerAlphaLock() {
         });
     });
     observer.observe(panel.node, { childList: true, subtree: true });
-    track({
-        delete() {
-            observer.disconnect();
-        }
-    });
+    track({ delete() { observer.disconnect(); } });
+}
 
-    // Initial icon pass
-    refreshLayerIcons();
-
-    // Sync lock_alpha whenever texture/layer selection changes (covers undo, texture switch, etc.)
-    const selectionListener = Blockbench.on('update_texture_selection', syncAlphaLock);
-    track(selectionListener);
-
-    // Context menu action
-    const toggleAlphaLockAction = new Action('toggle_layer_alpha_lock', {
+function setupContextMenu() {
+    const action = new Action('toggle_layer_alpha_lock', {
         name: 'Toggle Alpha Lock',
         icon: 'lock',
         category: 'layers',
         condition: () => TextureLayer.selected != null,
         click() {
-            if (TextureLayer.selected) {
-                // @ts-ignore
-                TextureLayer.selected.toggleAlphaLock();
-            }
+            // @ts-ignore
+            if (TextureLayer.selected) TextureLayer.selected.toggleAlphaLock();
         }
     });
-    track(toggleAlphaLockAction);
+    track(action);
 
-    // Add to layer context menu
     // @ts-expect-error — menu property not in public typings
     const menu: Menu = TextureLayer.prototype.menu;
-    menu.addAction(toggleAlphaLockAction, '#painting');
-    track({
-        delete() {
-            menu.removeAction('toggle_layer_alpha_lock');
-        }
-    });
+    menu.addAction(action, '#painting');
+    track({ delete() { menu.removeAction('toggle_layer_alpha_lock'); } });
+}
+
+export function setupLayerAlphaLock() {
+    setupProperty();
+    setupPrototypeMethods();
+    setupLayerPanelObserver();
+    refreshLayerIcons();
+    track(Blockbench.on('update_texture_selection', syncAlphaLock));
+    setupContextMenu();
 }
 
 export function cleanupLayerAlphaLock() {
