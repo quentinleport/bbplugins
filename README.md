@@ -1,10 +1,18 @@
 # Blockbench Plugins
 
-This repository contains a custom plugin designed specifically for Skytale 3D artists. 
+This repository contains a custom plugin designed specifically for Skytale 3D artists.
 Checkout our website to know more - [discover Skytale](https://skytale.fr/)
 
-# About the Skytale 3d Artist essentials plugin 
-Update
+# About the Skytale 3d Artist essentials plugin
+
+## Core features:
+
+- 🤖 automatic center of the cuboid in Java/Block Item projects
+- 🎨 implement alpha lock constraints on texture layers: brush strokes only affect areas that already have color, leaving fully transparent pixels untouched
+
+## Coming soon 
+- 🎨 clipping mask on layers
+- 🤖 json validation for easy minecraft integration
 
 ## Development Setup
 
