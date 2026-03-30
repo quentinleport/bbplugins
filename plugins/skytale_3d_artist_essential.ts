@@ -1,5 +1,5 @@
 import { centerCube } from "./src/center_cube";
-import { setupLayerAlphaLock, cleanupLayerAlphaLock } from "./src/layer_alpha_lock"
+import { setupLayerAlphaLock, cleanupLayerAlphaLock } from "./src/layer_alpha_lock/layer_alpha_lock"
 
 let customActions: Action[] = [];
 
