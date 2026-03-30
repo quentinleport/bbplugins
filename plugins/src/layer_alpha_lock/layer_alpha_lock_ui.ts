@@ -19,6 +19,7 @@ export function setupLayerPanelObserver(track: (...items: Deletable[]) => void) 
 function createAlphaLockButton(row: HTMLElement): HTMLElement {
     const btn = document.createElement('div');
     btn.className = 'in_list_button alpha-lock-btn';
+    btn.title = 'Alpha Lock';
 
     const icon = document.createElement('i');
     icon.className = 'material-icons icon';
