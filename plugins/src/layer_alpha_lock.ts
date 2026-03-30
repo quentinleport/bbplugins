@@ -5,6 +5,12 @@ function track(...items: Deletable[]) {
     trackItems.push(...items);
 }
 
+function syncAlphaLock() {
+    const layer = TextureLayer.selected;
+    // @ts-ignore — Painter.lock_alpha is typed Const but is writable at runtime
+    Painter.lock_alpha = layer ? !!layer.alpha_lock : false;
+}
+
 function refreshLayerIcons() {
     const panel = Interface.Panels.layers;
     if (!panel) return;
@@ -73,6 +79,7 @@ export function setupLayerAlphaLock() {
         (this as any).alpha_lock = !(this as any).alpha_lock;
         this.texture.updateChangesAfterEdit();
         refreshLayerIcons();
+        syncAlphaLock();
         return this;
     };
     track({
@@ -81,6 +88,20 @@ export function setupLayerAlphaLock() {
             delete TextureLayer.prototype.toggleAlphaLock;
         }
     });
+
+    // Patch TextureLayer.prototype.select to sync Painter.lock_alpha on layer change
+    const _origSelect = TextureLayer.prototype.select;
+    TextureLayer.prototype.select = function (this: TextureLayer) {
+        const result = _origSelect.call(this);
+        syncAlphaLock();
+        return result;
+    };
+    track({
+        delete() {
+            TextureLayer.prototype.select = _origSelect;
+        }
+    });
+
     // Set up MutationObserver
     const panel = Interface.Panels.layers;
     let refreshScheduled = false;
@@ -103,6 +124,10 @@ export function setupLayerAlphaLock() {
 
     // Initial icon pass
     refreshLayerIcons();
+
+    // Sync lock_alpha whenever texture/layer selection changes (covers undo, texture switch, etc.)
+    const selectionListener = Blockbench.on('update_texture_selection', syncAlphaLock);
+    track(selectionListener);
 
     // Context menu action
     const toggleAlphaLockAction = new Action('toggle_layer_alpha_lock', {
